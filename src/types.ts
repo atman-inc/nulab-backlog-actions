@@ -26,53 +26,6 @@ export interface BacklogConfig {
 }
 
 /**
- * Backlog issue status
- */
-export interface BacklogStatus {
-  id: number;
-  projectId: number;
-  name: string;
-  color: string;
-  displayOrder: number;
-}
-
-/**
- * Backlog issue (simplified)
- */
-export interface BacklogIssue {
-  id: number;
-  projectId: number;
-  issueKey: string;
-  keyId: number;
-  issueType: {
-    id: number;
-    projectId: number;
-    name: string;
-    color: string;
-    displayOrder: number;
-  };
-  summary: string;
-  description: string;
-  status: BacklogStatus;
-}
-
-/**
- * Backlog comment
- */
-export interface BacklogComment {
-  id: number;
-  content: string;
-  changeLog: unknown[];
-  createdUser: {
-    id: number;
-    userId: string;
-    name: string;
-  };
-  created: string;
-  updated: string;
-}
-
-/**
  * Action configuration
  */
 export interface ActionConfig {
