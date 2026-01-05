@@ -30085,6 +30085,11 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.getConfig = getConfig;
+exports.getPullRequestInfo = getPullRequestInfo;
+exports.handlePullRequestOpened = handlePullRequestOpened;
+exports.handlePullRequestMerged = handlePullRequestMerged;
+exports.processAnnotation = processAnnotation;
 const core = __importStar(__nccwpck_require__(7484));
 const github = __importStar(__nccwpck_require__(3228));
 const backlog_1 = __nccwpck_require__(4324);

@@ -7,7 +7,7 @@ import { ActionConfig, PullRequestInfo, ParsedAnnotation } from './types';
 /**
  * Get action configuration from inputs
  */
-function getConfig(): ActionConfig {
+export function getConfig(): ActionConfig {
   return {
     backlog: {
       host: core.getInput('backlog_host', { required: true }),
@@ -23,7 +23,7 @@ function getConfig(): ActionConfig {
 /**
  * Extract PR information from GitHub context
  */
-function getPullRequestInfo(): PullRequestInfo | null {
+export function getPullRequestInfo(): PullRequestInfo | null {
   const { payload } = github.context;
   const pr = payload.pull_request;
 
@@ -45,7 +45,7 @@ function getPullRequestInfo(): PullRequestInfo | null {
  * Handle PR opened event (non-draft)
  * Adds comment to referenced Backlog issues
  */
-async function handlePullRequestOpened(
+export async function handlePullRequestOpened(
   client: BacklogClient,
   pr: PullRequestInfo
 ): Promise<void> {
@@ -84,7 +84,7 @@ async function handlePullRequestOpened(
  * Handle PR merged event
  * Updates status of referenced Backlog issues based on annotations
  */
-async function handlePullRequestMerged(
+export async function handlePullRequestMerged(
   client: BacklogClient,
   pr: PullRequestInfo,
   config: ActionConfig
@@ -111,7 +111,7 @@ async function handlePullRequestMerged(
 /**
  * Process a single annotation - update issue status
  */
-async function processAnnotation(
+export async function processAnnotation(
   client: BacklogClient,
   annotation: ParsedAnnotation,
   pr: PullRequestInfo,
