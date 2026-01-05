@@ -1,0 +1,35 @@
+name: 'Nulab Backlog Integration'
+description: 'Integrate GitHub Pull Requests with Nulab Backlog issues'
+author: 'atman-inc'
+
+branding:
+  icon: 'link'
+  color: 'green'
+
+inputs:
+  backlog_host:
+    description: 'Backlog host (e.g., "example.backlog.com" or "example.backlog.jp")'
+    required: true
+  backlog_api_key:
+    description: 'Backlog API key'
+    required: true
+  add_comment:
+    description: 'Add comment to Backlog issue when PR is opened (non-draft)'
+    required: false
+    default: 'true'
+  update_status_on_merge:
+    description: 'Update Backlog issue status when PR is merged'
+    required: false
+    default: 'true'
+  fix_status_id:
+    description: 'Status ID to set for fix/resolve annotations (default: 3 = 処理済み)'
+    required: false
+    default: '3'
+  close_status_id:
+    description: 'Status ID to set for close annotations (default: 4 = 完了)'
+    required: false
+    default: '4'
+
+runs:
+  using: 'node20'
+  main: 'dist/index.js'
