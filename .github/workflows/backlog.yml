@@ -1,0 +1,14 @@
+name: Backlog Integration
+
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review, closed]
+
+jobs:
+  backlog:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: atman-inc/nulab-backlog-actions@main
+        with:
+          backlog_host: ${{ secrets.BACKLOG_HOST }}
+          backlog_api_key: ${{ secrets.BACKLOG_API_KEY }}
