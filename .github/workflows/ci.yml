@@ -46,8 +46,9 @@ jobs:
 
       - name: Check for uncommitted changes
         run: |
-          if [ -n "$(git status --porcelain dist/)" ]; then
+          # Exclude source map files from check (they may change on each build)
+          if [ -n "$(git status --porcelain dist/ -- ':!dist/*.map')" ]; then
             echo "Error: dist/ has uncommitted changes. Please run 'npm run build' and commit the changes."
-            git diff dist/
+            git diff dist/ -- ':!dist/*.map'
             exit 1
           fi
