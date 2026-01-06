@@ -145,7 +145,7 @@ describe('GitHubClient', () => {
   });
 
   describe('addBacklogLinkToDescription', () => {
-    it('should add link if not exists', async () => {
+    it('should add new backlog section if not exists', async () => {
       mockOctokit.rest.pulls.get.mockResolvedValue({
         data: { body: 'Original description' },
       });
@@ -159,19 +159,25 @@ describe('GitHubClient', () => {
         owner: 'test-owner',
         repo: 'test-repo',
         pull_number: 123,
-        body: expect.stringContaining('Original description'),
+        body: 'Original description\n\n---\n🔗 Backlog: [PROJ-123](https://example.backlog.com/view/PROJ-123)\n<!-- backlog-link:PROJ-123 -->',
       });
+    });
+
+    it('should append to existing backlog line', async () => {
+      mockOctokit.rest.pulls.get.mockResolvedValue({
+        data: { body: 'Description\n\n---\n🔗 Backlog: [PROJ-123](https://example.backlog.com/view/PROJ-123)\n<!-- backlog-link:PROJ-123 -->' },
+      });
+      mockOctokit.rest.pulls.update.mockResolvedValue({});
+
+      const client = new GitHubClient('test-token');
+      const result = await client.addBacklogLinkToDescription(123, 'example.backlog.com', 'PROJ-456');
+
+      expect(result).toBe(true);
       expect(mockOctokit.rest.pulls.update).toHaveBeenCalledWith({
         owner: 'test-owner',
         repo: 'test-repo',
         pull_number: 123,
-        body: expect.stringContaining('https://example.backlog.com/view/PROJ-123'),
-      });
-      expect(mockOctokit.rest.pulls.update).toHaveBeenCalledWith({
-        owner: 'test-owner',
-        repo: 'test-repo',
-        pull_number: 123,
-        body: expect.stringContaining('<!-- backlog-link:PROJ-123 -->'),
+        body: 'Description\n\n---\n🔗 Backlog: [PROJ-123](https://example.backlog.com/view/PROJ-123) [PROJ-456](https://example.backlog.com/view/PROJ-456)\n<!-- backlog-link:PROJ-123 -->\n<!-- backlog-link:PROJ-456 -->',
       });
     });
 
@@ -226,13 +232,7 @@ describe('GitHubClient', () => {
         owner: 'test-owner',
         repo: 'test-repo',
         pull_number: 123,
-        body: expect.stringContaining('<!-- backlog-merged:PROJ-123 -->'),
-      });
-      expect(mockOctokit.rest.pulls.update).toHaveBeenCalledWith({
-        owner: 'test-owner',
-        repo: 'test-repo',
-        pull_number: 123,
-        body: expect.stringContaining('処理済み'),
+        body: 'Original description\n<!-- backlog-merged:PROJ-123 -->',
       });
     });
 

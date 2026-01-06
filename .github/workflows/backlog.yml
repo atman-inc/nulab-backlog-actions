@@ -8,7 +8,8 @@ jobs:
   backlog:
     runs-on: ubuntu-latest
     steps:
-      - uses: atman-inc/nulab-backlog-actions@main
+      - uses: actions/checkout@v4
+      - uses: ./
         with:
           backlog_host: ${{ secrets.BACKLOG_HOST }}
           backlog_api_key: ${{ secrets.BACKLOG_API_KEY }}

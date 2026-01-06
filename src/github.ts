@@ -52,8 +52,8 @@ export class GitHubClient {
   }
 
   /**
-   * Add Backlog issue link to PR description if not already present
-   * Returns true if link was added, false if already exists
+   * Add Backlog issue link marker to PR description if not already present
+   * Returns true if marker was added, false if already exists
    */
   async addBacklogLinkToDescription(
     prNumber: number,
@@ -64,16 +64,25 @@ export class GitHubClient {
     const marker = buildBacklogLinkMarker(issueKey);
 
     if (body.includes(marker)) {
-      core.info(`PR #${prNumber} already has a link for ${issueKey}, skipping`);
+      core.info(`PR #${prNumber} already has a marker for ${issueKey}, skipping`);
       return false;
     }
 
     const backlogUrl = buildBacklogIssueUrl(backlogHost, issueKey);
-    const linkSection = `\n\n---\n🔗 Backlog: [${issueKey}](${backlogUrl})\n${marker}`;
-    const newBody = body + linkSection;
+    const linkText = `[${issueKey}](${backlogUrl})`;
+    const backlogLinkLineRegex = /^(🔗 Backlog: .*)$/m;
+
+    let newBody: string;
+    if (backlogLinkLineRegex.test(body)) {
+      // Append to existing Backlog link line
+      newBody = body.replace(backlogLinkLineRegex, `$1 ${linkText}`) + `\n${marker}`;
+    } else {
+      // Create new Backlog link section
+      newBody = body + `\n\n---\n🔗 Backlog: ${linkText}\n${marker}`;
+    }
 
     await this.updatePRBody(prNumber, newBody);
-    core.info(`Added Backlog link to PR #${prNumber} description for ${issueKey}`);
+    core.info(`Added Backlog marker to PR #${prNumber} description for ${issueKey}`);
     return true;
   }
 
@@ -91,9 +100,9 @@ export class GitHubClient {
    */
   async addMergeMarkerToDescription(
     prNumber: number,
-    backlogHost: string,
+    _backlogHost: string,
     issueKey: string,
-    statusLabel: string
+    _statusLabel: string
   ): Promise<void> {
     const body = await this.getPRBody(prNumber);
     const marker = buildMergeMarker(issueKey);
@@ -102,9 +111,7 @@ export class GitHubClient {
       return;
     }
 
-    const backlogUrl = buildBacklogIssueUrl(backlogHost, issueKey);
-    const statusSection = `\n✅ [${issueKey}](${backlogUrl}) → ${statusLabel}\n${marker}`;
-    const newBody = body + statusSection;
+    const newBody = body + `\n${marker}`;
 
     await this.updatePRBody(prNumber, newBody);
   }

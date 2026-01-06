@@ -1,4 +1,4 @@
-require('./sourcemap-register.js');/******/ (() => { // webpackBootstrap
+/******/ (() => { // webpackBootstrap
 /******/ 	var __webpack_modules__ = ({
 
 /***/ 4914:
@@ -30114,21 +30114,30 @@ class GitHubClient {
         return body.includes(marker);
     }
     /**
-     * Add Backlog issue link to PR description if not already present
-     * Returns true if link was added, false if already exists
+     * Add Backlog issue link marker to PR description if not already present
+     * Returns true if marker was added, false if already exists
      */
     async addBacklogLinkToDescription(prNumber, backlogHost, issueKey) {
         const body = await this.getPRBody(prNumber);
         const marker = buildBacklogLinkMarker(issueKey);
         if (body.includes(marker)) {
-            core.info(`PR #${prNumber} already has a link for ${issueKey}, skipping`);
+            core.info(`PR #${prNumber} already has a marker for ${issueKey}, skipping`);
             return false;
         }
         const backlogUrl = buildBacklogIssueUrl(backlogHost, issueKey);
-        const linkSection = `\n\n---\n🔗 Backlog: [${issueKey}](${backlogUrl})\n${marker}`;
-        const newBody = body + linkSection;
+        const linkText = `[${issueKey}](${backlogUrl})`;
+        const backlogLinkLineRegex = /^(🔗 Backlog: .*)$/m;
+        let newBody;
+        if (backlogLinkLineRegex.test(body)) {
+            // Append to existing Backlog link line
+            newBody = body.replace(backlogLinkLineRegex, `$1 ${linkText}`) + `\n${marker}`;
+        }
+        else {
+            // Create new Backlog link section
+            newBody = body + `\n\n---\n🔗 Backlog: ${linkText}\n${marker}`;
+        }
         await this.updatePRBody(prNumber, newBody);
-        core.info(`Added Backlog link to PR #${prNumber} description for ${issueKey}`);
+        core.info(`Added Backlog marker to PR #${prNumber} description for ${issueKey}`);
         return true;
     }
     /**
@@ -30142,15 +30151,13 @@ class GitHubClient {
     /**
      * Add merge marker to PR description
      */
-    async addMergeMarkerToDescription(prNumber, backlogHost, issueKey, statusLabel) {
+    async addMergeMarkerToDescription(prNumber, _backlogHost, issueKey, _statusLabel) {
         const body = await this.getPRBody(prNumber);
         const marker = buildMergeMarker(issueKey);
         if (body.includes(marker)) {
             return;
         }
-        const backlogUrl = buildBacklogIssueUrl(backlogHost, issueKey);
-        const statusSection = `\n✅ [${issueKey}](${backlogUrl}) → ${statusLabel}\n${marker}`;
-        const newBody = body + statusSection;
+        const newBody = body + `\n${marker}`;
         await this.updatePRBody(prNumber, newBody);
     }
 }
@@ -32459,4 +32466,3 @@ module.exports = parseParams
 /******/ 	
 /******/ })()
 ;
-//# sourceMappingURL=index.js.map
