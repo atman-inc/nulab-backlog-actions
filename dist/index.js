@@ -30070,10 +30070,12 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.GitHubClient = void 0;
 exports.buildBacklogIssueUrl = buildBacklogIssueUrl;
+exports.buildBacklogLinkMarker = buildBacklogLinkMarker;
+exports.buildMergeMarker = buildMergeMarker;
 const github = __importStar(__nccwpck_require__(3228));
 const core = __importStar(__nccwpck_require__(7484));
 /**
- * GitHub client wrapper for PR comment operations
+ * GitHub client wrapper for PR description operations
  */
 class GitHubClient {
     constructor(token) {
@@ -30082,53 +30084,74 @@ class GitHubClient {
         this.repo = github.context.repo.repo;
     }
     /**
-     * Get all comments on a PR
+     * Get PR body (description)
      */
-    async getPRComments(prNumber) {
-        const { data } = await this.octokit.rest.issues.listComments({
+    async getPRBody(prNumber) {
+        const { data } = await this.octokit.rest.pulls.get({
             owner: this.owner,
             repo: this.repo,
-            issue_number: prNumber,
+            pull_number: prNumber,
         });
-        return data.map((comment) => ({
-            id: comment.id,
-            body: comment.body || '',
-        }));
+        return data.body || '';
     }
     /**
-     * Add a comment to a PR
+     * Update PR body (description)
      */
-    async addPRComment(prNumber, body) {
-        await this.octokit.rest.issues.createComment({
+    async updatePRBody(prNumber, body) {
+        await this.octokit.rest.pulls.update({
             owner: this.owner,
             repo: this.repo,
-            issue_number: prNumber,
+            pull_number: prNumber,
             body,
         });
     }
     /**
-     * Check if a PR already has a comment containing the Backlog issue URL
+     * Check if PR description already has a Backlog link marker for the given issue
      */
-    async hasBacklogComment(prNumber, backlogHost, issueKey) {
-        const comments = await this.getPRComments(prNumber);
-        const backlogIssueUrl = buildBacklogIssueUrl(backlogHost, issueKey);
-        return comments.some((comment) => comment.body.includes(backlogIssueUrl));
+    async hasBacklogLink(prNumber, issueKey) {
+        const body = await this.getPRBody(prNumber);
+        const marker = buildBacklogLinkMarker(issueKey);
+        return body.includes(marker);
     }
     /**
-     * Add Backlog issue link comment to PR if not already present
-     * Returns true if comment was added, false if already exists
+     * Add Backlog issue link to PR description if not already present
+     * Returns true if link was added, false if already exists
      */
-    async addBacklogLinkComment(prNumber, backlogHost, issueKey) {
-        const hasComment = await this.hasBacklogComment(prNumber, backlogHost, issueKey);
-        if (hasComment) {
-            core.info(`PR #${prNumber} already has a comment for ${issueKey}, skipping`);
+    async addBacklogLinkToDescription(prNumber, backlogHost, issueKey) {
+        const body = await this.getPRBody(prNumber);
+        const marker = buildBacklogLinkMarker(issueKey);
+        if (body.includes(marker)) {
+            core.info(`PR #${prNumber} already has a link for ${issueKey}, skipping`);
             return false;
         }
-        const backlogIssueUrl = buildBacklogIssueUrl(backlogHost, issueKey);
-        const body = `Backlog: [${issueKey}](${backlogIssueUrl})`;
-        await this.addPRComment(prNumber, body);
-        core.info(`Added Backlog link comment to PR #${prNumber} for ${issueKey}`);
+        const backlogUrl = buildBacklogIssueUrl(backlogHost, issueKey);
+        const linkSection = `\n\n---\n🔗 Backlog: [${issueKey}](${backlogUrl})\n${marker}`;
+        const newBody = body + linkSection;
+        await this.updatePRBody(prNumber, newBody);
+        core.info(`Added Backlog link to PR #${prNumber} description for ${issueKey}`);
         return true;
+    }
+    /**
+     * Check if merge was already processed for the given issue
+     */
+    async hasMergeMarker(prNumber, issueKey) {
+        const body = await this.getPRBody(prNumber);
+        const marker = buildMergeMarker(issueKey);
+        return body.includes(marker);
+    }
+    /**
+     * Add merge marker to PR description
+     */
+    async addMergeMarkerToDescription(prNumber, backlogHost, issueKey, statusLabel) {
+        const body = await this.getPRBody(prNumber);
+        const marker = buildMergeMarker(issueKey);
+        if (body.includes(marker)) {
+            return;
+        }
+        const backlogUrl = buildBacklogIssueUrl(backlogHost, issueKey);
+        const statusSection = `\n✅ [${issueKey}](${backlogUrl}) → ${statusLabel}\n${marker}`;
+        const newBody = body + statusSection;
+        await this.updatePRBody(prNumber, newBody);
     }
 }
 exports.GitHubClient = GitHubClient;
@@ -30138,6 +30161,18 @@ exports.GitHubClient = GitHubClient;
 function buildBacklogIssueUrl(host, issueKey) {
     const cleanHost = host.replace(/^https?:\/\//, '');
     return `https://${cleanHost}/view/${issueKey}`;
+}
+/**
+ * Build hidden marker for Backlog link tracking
+ */
+function buildBacklogLinkMarker(issueKey) {
+    return `<!-- backlog-link:${issueKey} -->`;
+}
+/**
+ * Build hidden marker for merge tracking
+ */
+function buildMergeMarker(issueKey) {
+    return `<!-- backlog-merged:${issueKey} -->`;
 }
 
 
@@ -30229,7 +30264,7 @@ function getPullRequestInfo() {
 /**
  * Handle PR opened event (non-draft)
  * Adds comment to referenced Backlog issues
- * Uses GitHub PR comment to track which issues already have comments
+ * Uses PR description to track which issues already have comments
  */
 async function handlePullRequestOpened(backlogClient, githubClient, pr, backlogHost) {
     core.info(`Processing PR #${pr.number}: ${pr.title}`);
@@ -30241,13 +30276,13 @@ async function handlePullRequestOpened(backlogClient, githubClient, pr, backlogH
         return;
     }
     core.info(`Found Backlog issue keys: ${issueKeys.join(', ')}`);
-    // Add comment to each issue (with duplicate check via GitHub PR comment)
+    // Add comment to each issue (with duplicate check via PR description)
     for (const issueKey of issueKeys) {
         try {
-            // Check if we already added a comment for this issue (via GitHub PR comment)
-            const hasComment = await githubClient.hasBacklogComment(pr.number, backlogHost, issueKey);
-            if (hasComment) {
-                core.info(`Already commented on ${issueKey} (found existing PR comment), skipping`);
+            // Check if we already added a comment for this issue (via PR description marker)
+            const hasLink = await githubClient.hasBacklogLink(pr.number, issueKey);
+            if (hasLink) {
+                core.info(`Already commented on ${issueKey} (found marker in PR description), skipping`);
                 continue;
             }
             // Verify issue exists in Backlog
@@ -30260,8 +30295,8 @@ async function handlePullRequestOpened(backlogClient, githubClient, pr, backlogH
             const comment = `GitHub Pull Request がオープンされました:\n${pr.url}\n\n**${pr.title}**`;
             await backlogClient.addComment(issueKey, comment);
             core.info(`Added comment to ${issueKey}`);
-            // Add Backlog link comment to PR (for tracking)
-            await githubClient.addBacklogLinkComment(pr.number, backlogHost, issueKey);
+            // Add Backlog link to PR description (for tracking)
+            await githubClient.addBacklogLinkToDescription(pr.number, backlogHost, issueKey);
         }
         catch (error) {
             core.warning(`Failed to add comment to ${issueKey}: ${error}`);
@@ -30293,11 +30328,8 @@ async function handlePullRequestMerged(backlogClient, githubClient, pr, config) 
 async function processAnnotation(backlogClient, githubClient, annotation, pr, config) {
     const { issueKey, action } = annotation;
     try {
-        // Check if we already processed this merge (via GitHub PR comment pattern)
-        // We use a special marker in PR comment to indicate merge was processed
-        const comments = await githubClient.getPRComments(pr.number);
-        const mergeMarker = `<!-- backlog-merged:${issueKey} -->`;
-        const alreadyProcessed = comments.some((c) => c.body.includes(mergeMarker));
+        // Check if we already processed this merge (via PR description marker)
+        const alreadyProcessed = await githubClient.hasMergeMarker(pr.number, issueKey);
         if (alreadyProcessed) {
             core.info(`Already processed merge for ${issueKey}, skipping`);
             return;
@@ -30315,9 +30347,8 @@ async function processAnnotation(backlogClient, githubClient, annotation, pr, co
         const backlogComment = `GitHub Pull Request がマージされました:\n${pr.url}\n\nステータスを「${actionLabel}」に更新しました。`;
         await backlogClient.addComment(issueKey, backlogComment);
         core.info(`Added merge comment to ${issueKey}`);
-        // Add marker comment to PR (hidden, for tracking)
-        const prComment = `${mergeMarker}\nBacklog [${issueKey}](https://${config.backlog.host.replace(/^https?:\/\//, '')}/view/${issueKey}) のステータスを「${actionLabel}」に更新しました。`;
-        await githubClient.addPRComment(pr.number, prComment);
+        // Add merge marker to PR description (for tracking)
+        await githubClient.addMergeMarkerToDescription(pr.number, config.backlog.host, issueKey, actionLabel);
     }
     catch (error) {
         core.error(`Failed to process annotation for ${issueKey}: ${error}`);

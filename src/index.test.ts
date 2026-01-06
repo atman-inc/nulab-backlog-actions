@@ -139,10 +139,12 @@ describe('handlePullRequestOpened', () => {
       getProjectStatuses: jest.fn(),
     } as any;
     mockGitHubClient = {
-      hasBacklogComment: jest.fn(),
-      addBacklogLinkComment: jest.fn(),
-      getPRComments: jest.fn(),
-      addPRComment: jest.fn(),
+      hasBacklogLink: jest.fn(),
+      addBacklogLinkToDescription: jest.fn(),
+      hasMergeMarker: jest.fn(),
+      addMergeMarkerToDescription: jest.fn(),
+      getPRBody: jest.fn(),
+      updatePRBody: jest.fn(),
     } as any;
   });
 
@@ -156,23 +158,23 @@ describe('handlePullRequestOpened', () => {
       merged: false,
     };
 
-    mockGitHubClient.hasBacklogComment.mockResolvedValue(false);
+    mockGitHubClient.hasBacklogLink.mockResolvedValue(false);
     mockBacklogClient.issueExists.mockResolvedValue(true);
     mockBacklogClient.addComment.mockResolvedValue({} as any);
-    mockGitHubClient.addBacklogLinkComment.mockResolvedValue(true);
+    mockGitHubClient.addBacklogLinkToDescription.mockResolvedValue(true);
 
     await handlePullRequestOpened(mockBacklogClient, mockGitHubClient, pr, 'example.backlog.com');
 
-    expect(mockGitHubClient.hasBacklogComment).toHaveBeenCalledWith(123, 'example.backlog.com', 'PROJ-123');
+    expect(mockGitHubClient.hasBacklogLink).toHaveBeenCalledWith(123, 'PROJ-123');
     expect(mockBacklogClient.issueExists).toHaveBeenCalledWith('PROJ-123');
     expect(mockBacklogClient.addComment).toHaveBeenCalledWith(
       'PROJ-123',
       expect.stringContaining('GitHub Pull Request がオープンされました')
     );
-    expect(mockGitHubClient.addBacklogLinkComment).toHaveBeenCalledWith(123, 'example.backlog.com', 'PROJ-123');
+    expect(mockGitHubClient.addBacklogLinkToDescription).toHaveBeenCalledWith(123, 'example.backlog.com', 'PROJ-123');
   });
 
-  it('should skip if already commented (via PR comment check)', async () => {
+  it('should skip if already commented (via PR description marker)', async () => {
     const pr: PullRequestInfo = {
       number: 123,
       title: 'Fix PROJ-123',
@@ -182,7 +184,7 @@ describe('handlePullRequestOpened', () => {
       merged: false,
     };
 
-    mockGitHubClient.hasBacklogComment.mockResolvedValue(true);
+    mockGitHubClient.hasBacklogLink.mockResolvedValue(true);
 
     await handlePullRequestOpened(mockBacklogClient, mockGitHubClient, pr, 'example.backlog.com');
 
@@ -203,7 +205,7 @@ describe('handlePullRequestOpened', () => {
       merged: false,
     };
 
-    mockGitHubClient.hasBacklogComment.mockResolvedValue(false);
+    mockGitHubClient.hasBacklogLink.mockResolvedValue(false);
     mockBacklogClient.issueExists.mockResolvedValue(false);
 
     await handlePullRequestOpened(mockBacklogClient, mockGitHubClient, pr, 'example.backlog.com');
@@ -226,7 +228,7 @@ describe('handlePullRequestOpened', () => {
 
     await handlePullRequestOpened(mockBacklogClient, mockGitHubClient, pr, 'example.backlog.com');
 
-    expect(mockGitHubClient.hasBacklogComment).not.toHaveBeenCalled();
+    expect(mockGitHubClient.hasBacklogLink).not.toHaveBeenCalled();
     expect(mockBacklogClient.issueExists).not.toHaveBeenCalled();
     expect(mockInfo).toHaveBeenCalledWith(
       expect.stringContaining('No Backlog issue keys found')
@@ -249,10 +251,12 @@ describe('handlePullRequestMerged', () => {
       getProjectStatuses: jest.fn(),
     } as any;
     mockGitHubClient = {
-      hasBacklogComment: jest.fn(),
-      addBacklogLinkComment: jest.fn(),
-      getPRComments: jest.fn(),
-      addPRComment: jest.fn(),
+      hasBacklogLink: jest.fn(),
+      addBacklogLinkToDescription: jest.fn(),
+      hasMergeMarker: jest.fn(),
+      addMergeMarkerToDescription: jest.fn(),
+      getPRBody: jest.fn(),
+      updatePRBody: jest.fn(),
     } as any;
   });
 
@@ -275,7 +279,7 @@ describe('handlePullRequestMerged', () => {
       closeStatusId: 4,
     };
 
-    mockGitHubClient.getPRComments.mockResolvedValue([]);
+    mockGitHubClient.hasMergeMarker.mockResolvedValue(false);
     mockBacklogClient.getIssue.mockResolvedValue({
       id: 1,
       issueKey: 'PROJ-123',
@@ -283,7 +287,7 @@ describe('handlePullRequestMerged', () => {
     } as any);
     mockBacklogClient.updateIssueStatus.mockResolvedValue({} as any);
     mockBacklogClient.addComment.mockResolvedValue({} as any);
-    mockGitHubClient.addPRComment.mockResolvedValue();
+    mockGitHubClient.addMergeMarkerToDescription.mockResolvedValue();
 
     await handlePullRequestMerged(mockBacklogClient, mockGitHubClient, pr, config);
 
@@ -339,10 +343,12 @@ describe('processAnnotation', () => {
       getProjectStatuses: jest.fn(),
     } as any;
     mockGitHubClient = {
-      hasBacklogComment: jest.fn(),
-      addBacklogLinkComment: jest.fn(),
-      getPRComments: jest.fn(),
-      addPRComment: jest.fn(),
+      hasBacklogLink: jest.fn(),
+      addBacklogLinkToDescription: jest.fn(),
+      hasMergeMarker: jest.fn(),
+      addMergeMarkerToDescription: jest.fn(),
+      getPRBody: jest.fn(),
+      updatePRBody: jest.fn(),
     } as any;
   });
 
@@ -371,7 +377,7 @@ describe('processAnnotation', () => {
       closeStatusId: 4,
     };
 
-    mockGitHubClient.getPRComments.mockResolvedValue([]);
+    mockGitHubClient.hasMergeMarker.mockResolvedValue(false);
     mockBacklogClient.getIssue.mockResolvedValue({
       id: 1,
       issueKey: 'PROJ-123',
@@ -379,7 +385,7 @@ describe('processAnnotation', () => {
     } as any);
     mockBacklogClient.updateIssueStatus.mockResolvedValue({} as any);
     mockBacklogClient.addComment.mockResolvedValue({} as any);
-    mockGitHubClient.addPRComment.mockResolvedValue();
+    mockGitHubClient.addMergeMarkerToDescription.mockResolvedValue();
 
     await processAnnotation(mockBacklogClient, mockGitHubClient, annotation, pr, config);
 
@@ -389,7 +395,7 @@ describe('processAnnotation', () => {
     );
   });
 
-  it('should skip if already processed (merge marker exists)', async () => {
+  it('should skip if already processed (merge marker exists in description)', async () => {
     const annotation: ParsedAnnotation = {
       issueKey: 'PROJ-123',
       action: 'fix',
@@ -414,9 +420,7 @@ describe('processAnnotation', () => {
       closeStatusId: 4,
     };
 
-    mockGitHubClient.getPRComments.mockResolvedValue([
-      { id: 1, body: '<!-- backlog-merged:PROJ-123 -->\nStatus updated' },
-    ]);
+    mockGitHubClient.hasMergeMarker.mockResolvedValue(true);
 
     await processAnnotation(mockBacklogClient, mockGitHubClient, annotation, pr, config);
 
@@ -452,7 +456,7 @@ describe('processAnnotation', () => {
       closeStatusId: 4,
     };
 
-    mockGitHubClient.getPRComments.mockResolvedValue([]);
+    mockGitHubClient.hasMergeMarker.mockResolvedValue(false);
     mockBacklogClient.getIssue.mockRejectedValue(new Error('Issue not found'));
 
     await processAnnotation(mockBacklogClient, mockGitHubClient, annotation, pr, config);

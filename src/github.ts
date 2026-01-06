@@ -4,7 +4,7 @@ import * as core from '@actions/core';
 export type Octokit = ReturnType<typeof github.getOctokit>;
 
 /**
- * GitHub client wrapper for PR comment operations
+ * GitHub client wrapper for PR description operations
  */
 export class GitHubClient {
   private readonly octokit: Octokit;
@@ -18,65 +18,95 @@ export class GitHubClient {
   }
 
   /**
-   * Get all comments on a PR
+   * Get PR body (description)
    */
-  async getPRComments(prNumber: number): Promise<{ id: number; body: string }[]> {
-    const { data } = await this.octokit.rest.issues.listComments({
+  async getPRBody(prNumber: number): Promise<string> {
+    const { data } = await this.octokit.rest.pulls.get({
       owner: this.owner,
       repo: this.repo,
-      issue_number: prNumber,
+      pull_number: prNumber,
     });
 
-    return data.map((comment) => ({
-      id: comment.id,
-      body: comment.body || '',
-    }));
+    return data.body || '';
   }
 
   /**
-   * Add a comment to a PR
+   * Update PR body (description)
    */
-  async addPRComment(prNumber: number, body: string): Promise<void> {
-    await this.octokit.rest.issues.createComment({
+  async updatePRBody(prNumber: number, body: string): Promise<void> {
+    await this.octokit.rest.pulls.update({
       owner: this.owner,
       repo: this.repo,
-      issue_number: prNumber,
+      pull_number: prNumber,
       body,
     });
   }
 
   /**
-   * Check if a PR already has a comment containing the Backlog issue URL
+   * Check if PR description already has a Backlog link marker for the given issue
    */
-  async hasBacklogComment(prNumber: number, backlogHost: string, issueKey: string): Promise<boolean> {
-    const comments = await this.getPRComments(prNumber);
-    const backlogIssueUrl = buildBacklogIssueUrl(backlogHost, issueKey);
-
-    return comments.some((comment) => comment.body.includes(backlogIssueUrl));
+  async hasBacklogLink(prNumber: number, issueKey: string): Promise<boolean> {
+    const body = await this.getPRBody(prNumber);
+    const marker = buildBacklogLinkMarker(issueKey);
+    return body.includes(marker);
   }
 
   /**
-   * Add Backlog issue link comment to PR if not already present
-   * Returns true if comment was added, false if already exists
+   * Add Backlog issue link to PR description if not already present
+   * Returns true if link was added, false if already exists
    */
-  async addBacklogLinkComment(
+  async addBacklogLinkToDescription(
     prNumber: number,
     backlogHost: string,
     issueKey: string
   ): Promise<boolean> {
-    const hasComment = await this.hasBacklogComment(prNumber, backlogHost, issueKey);
+    const body = await this.getPRBody(prNumber);
+    const marker = buildBacklogLinkMarker(issueKey);
 
-    if (hasComment) {
-      core.info(`PR #${prNumber} already has a comment for ${issueKey}, skipping`);
+    if (body.includes(marker)) {
+      core.info(`PR #${prNumber} already has a link for ${issueKey}, skipping`);
       return false;
     }
 
-    const backlogIssueUrl = buildBacklogIssueUrl(backlogHost, issueKey);
-    const body = `Backlog: [${issueKey}](${backlogIssueUrl})`;
+    const backlogUrl = buildBacklogIssueUrl(backlogHost, issueKey);
+    const linkSection = `\n\n---\n🔗 Backlog: [${issueKey}](${backlogUrl})\n${marker}`;
+    const newBody = body + linkSection;
 
-    await this.addPRComment(prNumber, body);
-    core.info(`Added Backlog link comment to PR #${prNumber} for ${issueKey}`);
+    await this.updatePRBody(prNumber, newBody);
+    core.info(`Added Backlog link to PR #${prNumber} description for ${issueKey}`);
     return true;
+  }
+
+  /**
+   * Check if merge was already processed for the given issue
+   */
+  async hasMergeMarker(prNumber: number, issueKey: string): Promise<boolean> {
+    const body = await this.getPRBody(prNumber);
+    const marker = buildMergeMarker(issueKey);
+    return body.includes(marker);
+  }
+
+  /**
+   * Add merge marker to PR description
+   */
+  async addMergeMarkerToDescription(
+    prNumber: number,
+    backlogHost: string,
+    issueKey: string,
+    statusLabel: string
+  ): Promise<void> {
+    const body = await this.getPRBody(prNumber);
+    const marker = buildMergeMarker(issueKey);
+
+    if (body.includes(marker)) {
+      return;
+    }
+
+    const backlogUrl = buildBacklogIssueUrl(backlogHost, issueKey);
+    const statusSection = `\n✅ [${issueKey}](${backlogUrl}) → ${statusLabel}\n${marker}`;
+    const newBody = body + statusSection;
+
+    await this.updatePRBody(prNumber, newBody);
   }
 }
 
@@ -86,4 +116,18 @@ export class GitHubClient {
 export function buildBacklogIssueUrl(host: string, issueKey: string): string {
   const cleanHost = host.replace(/^https?:\/\//, '');
   return `https://${cleanHost}/view/${issueKey}`;
+}
+
+/**
+ * Build hidden marker for Backlog link tracking
+ */
+export function buildBacklogLinkMarker(issueKey: string): string {
+  return `<!-- backlog-link:${issueKey} -->`;
+}
+
+/**
+ * Build hidden marker for merge tracking
+ */
+export function buildMergeMarker(issueKey: string): string {
+  return `<!-- backlog-merged:${issueKey} -->`;
 }

@@ -12,7 +12,7 @@ export declare function getPullRequestInfo(): PullRequestInfo | null;
 /**
  * Handle PR opened event (non-draft)
  * Adds comment to referenced Backlog issues
- * Uses GitHub PR comment to track which issues already have comments
+ * Uses PR description to track which issues already have comments
  */
 export declare function handlePullRequestOpened(backlogClient: BacklogClient, githubClient: GitHubClient, pr: PullRequestInfo, backlogHost: string): Promise<void>;
 /**

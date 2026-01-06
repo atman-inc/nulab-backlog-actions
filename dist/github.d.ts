@@ -1,7 +1,7 @@
 import * as github from '@actions/github';
 export type Octokit = ReturnType<typeof github.getOctokit>;
 /**
- * GitHub client wrapper for PR comment operations
+ * GitHub client wrapper for PR description operations
  */
 export declare class GitHubClient {
     private readonly octokit;
@@ -9,27 +9,40 @@ export declare class GitHubClient {
     private readonly repo;
     constructor(token: string);
     /**
-     * Get all comments on a PR
+     * Get PR body (description)
      */
-    getPRComments(prNumber: number): Promise<{
-        id: number;
-        body: string;
-    }[]>;
+    getPRBody(prNumber: number): Promise<string>;
     /**
-     * Add a comment to a PR
+     * Update PR body (description)
      */
-    addPRComment(prNumber: number, body: string): Promise<void>;
+    updatePRBody(prNumber: number, body: string): Promise<void>;
     /**
-     * Check if a PR already has a comment containing the Backlog issue URL
+     * Check if PR description already has a Backlog link marker for the given issue
      */
-    hasBacklogComment(prNumber: number, backlogHost: string, issueKey: string): Promise<boolean>;
+    hasBacklogLink(prNumber: number, issueKey: string): Promise<boolean>;
     /**
-     * Add Backlog issue link comment to PR if not already present
-     * Returns true if comment was added, false if already exists
+     * Add Backlog issue link to PR description if not already present
+     * Returns true if link was added, false if already exists
      */
-    addBacklogLinkComment(prNumber: number, backlogHost: string, issueKey: string): Promise<boolean>;
+    addBacklogLinkToDescription(prNumber: number, backlogHost: string, issueKey: string): Promise<boolean>;
+    /**
+     * Check if merge was already processed for the given issue
+     */
+    hasMergeMarker(prNumber: number, issueKey: string): Promise<boolean>;
+    /**
+     * Add merge marker to PR description
+     */
+    addMergeMarkerToDescription(prNumber: number, backlogHost: string, issueKey: string, statusLabel: string): Promise<void>;
 }
 /**
  * Build Backlog issue URL from host and issue key
  */
 export declare function buildBacklogIssueUrl(host: string, issueKey: string): string;
+/**
+ * Build hidden marker for Backlog link tracking
+ */
+export declare function buildBacklogLinkMarker(issueKey: string): string;
+/**
+ * Build hidden marker for merge tracking
+ */
+export declare function buildMergeMarker(issueKey: string): string;

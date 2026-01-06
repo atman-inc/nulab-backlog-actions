@@ -46,7 +46,7 @@ export function getPullRequestInfo(): PullRequestInfo | null {
 /**
  * Handle PR opened event (non-draft)
  * Adds comment to referenced Backlog issues
- * Uses GitHub PR comment to track which issues already have comments
+ * Uses PR description to track which issues already have comments
  */
 export async function handlePullRequestOpened(
   backlogClient: BacklogClient,
@@ -67,13 +67,13 @@ export async function handlePullRequestOpened(
 
   core.info(`Found Backlog issue keys: ${issueKeys.join(', ')}`);
 
-  // Add comment to each issue (with duplicate check via GitHub PR comment)
+  // Add comment to each issue (with duplicate check via PR description)
   for (const issueKey of issueKeys) {
     try {
-      // Check if we already added a comment for this issue (via GitHub PR comment)
-      const hasComment = await githubClient.hasBacklogComment(pr.number, backlogHost, issueKey);
-      if (hasComment) {
-        core.info(`Already commented on ${issueKey} (found existing PR comment), skipping`);
+      // Check if we already added a comment for this issue (via PR description marker)
+      const hasLink = await githubClient.hasBacklogLink(pr.number, issueKey);
+      if (hasLink) {
+        core.info(`Already commented on ${issueKey} (found marker in PR description), skipping`);
         continue;
       }
 
@@ -89,8 +89,8 @@ export async function handlePullRequestOpened(
       await backlogClient.addComment(issueKey, comment);
       core.info(`Added comment to ${issueKey}`);
 
-      // Add Backlog link comment to PR (for tracking)
-      await githubClient.addBacklogLinkComment(pr.number, backlogHost, issueKey);
+      // Add Backlog link to PR description (for tracking)
+      await githubClient.addBacklogLinkToDescription(pr.number, backlogHost, issueKey);
     } catch (error) {
       core.warning(`Failed to add comment to ${issueKey}: ${error}`);
     }
@@ -139,11 +139,8 @@ export async function processAnnotation(
   const { issueKey, action } = annotation;
 
   try {
-    // Check if we already processed this merge (via GitHub PR comment pattern)
-    // We use a special marker in PR comment to indicate merge was processed
-    const comments = await githubClient.getPRComments(pr.number);
-    const mergeMarker = `<!-- backlog-merged:${issueKey} -->`;
-    const alreadyProcessed = comments.some((c) => c.body.includes(mergeMarker));
+    // Check if we already processed this merge (via PR description marker)
+    const alreadyProcessed = await githubClient.hasMergeMarker(pr.number, issueKey);
 
     if (alreadyProcessed) {
       core.info(`Already processed merge for ${issueKey}, skipping`);
@@ -167,9 +164,8 @@ export async function processAnnotation(
     await backlogClient.addComment(issueKey, backlogComment);
     core.info(`Added merge comment to ${issueKey}`);
 
-    // Add marker comment to PR (hidden, for tracking)
-    const prComment = `${mergeMarker}\nBacklog [${issueKey}](https://${config.backlog.host.replace(/^https?:\/\//, '')}/view/${issueKey}) のステータスを「${actionLabel}」に更新しました。`;
-    await githubClient.addPRComment(pr.number, prComment);
+    // Add merge marker to PR description (for tracking)
+    await githubClient.addMergeMarkerToDescription(pr.number, config.backlog.host, issueKey, actionLabel);
   } catch (error) {
     core.error(`Failed to process annotation for ${issueKey}: ${error}`);
   }
