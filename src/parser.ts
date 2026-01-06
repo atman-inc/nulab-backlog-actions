@@ -20,9 +20,10 @@ const ALL_KEYWORDS = [...FIX_KEYWORDS, ...CLOSE_KEYWORDS];
 /**
  * Regular expression pattern for matching Backlog issue keys
  * Format: PROJECT_KEY-NUMBER (e.g., "PROJ-123", "MY_PROJECT-1")
- * Project keys: uppercase letters, numbers, and underscores
+ * Project keys: 1-25 characters, uppercase letters, numbers, and underscores (must start with letter)
+ * Issue ID: 1-6 digits
  */
-const ISSUE_KEY_PATTERN = '[A-Z][A-Z0-9_]*-\\d+';
+const ISSUE_KEY_PATTERN = '[A-Z][A-Z0-9_]{0,24}-\\d{1,6}';
 
 /**
  * Build regex pattern for annotation matching
@@ -106,7 +107,8 @@ export function extractIssueKeys(text: string): string[] {
     return [];
   }
 
-  const pattern = new RegExp(ISSUE_KEY_PATTERN, 'gi');
+  // Use word boundaries to ensure we match complete issue keys only
+  const pattern = new RegExp(`(?<![A-Z0-9_])${ISSUE_KEY_PATTERN}(?!\\d)`, 'gi');
   const keys = new Set<string>();
 
   let match: RegExpExecArray | null;

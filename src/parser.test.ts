@@ -127,4 +127,45 @@ describe('extractIssueKeys', () => {
     expect(result).toHaveLength(1);
     expect(result[0]).toBe('PROJ-123');
   });
+
+  // Project key length constraints (1-25 characters)
+  it('should match project key with 1 character', () => {
+    const result = extractIssueKeys('A-1');
+    expect(result).toHaveLength(1);
+    expect(result[0]).toBe('A-1');
+  });
+
+  it('should match project key with 25 characters', () => {
+    const result = extractIssueKeys('ABCDEFGHIJKLMNOPQRSTUVWXY-1');
+    expect(result).toHaveLength(1);
+    expect(result[0]).toBe('ABCDEFGHIJKLMNOPQRSTUVWXY-1');
+  });
+
+  it('should not match project key with 26 characters', () => {
+    const result = extractIssueKeys('ABCDEFGHIJKLMNOPQRSTUVWXYZ-1');
+    expect(result).toHaveLength(0);
+  });
+
+  // Issue ID constraints (1-6 digits)
+  it('should match issue ID with 1 digit', () => {
+    const result = extractIssueKeys('PROJ-1');
+    expect(result).toHaveLength(1);
+    expect(result[0]).toBe('PROJ-1');
+  });
+
+  it('should match issue ID with 6 digits', () => {
+    const result = extractIssueKeys('PROJ-123456');
+    expect(result).toHaveLength(1);
+    expect(result[0]).toBe('PROJ-123456');
+  });
+
+  it('should not match issue ID with 7 digits', () => {
+    const result = extractIssueKeys('PROJ-1234567');
+    expect(result).toHaveLength(0);
+  });
+
+  it('should not match issue ID with 0 digits', () => {
+    const result = extractIssueKeys('PROJ-');
+    expect(result).toHaveLength(0);
+  });
 });

@@ -30029,6 +30029,120 @@ exports.BacklogClient = BacklogClient;
 
 /***/ }),
 
+/***/ 9248:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.GitHubClient = void 0;
+exports.buildBacklogIssueUrl = buildBacklogIssueUrl;
+const github = __importStar(__nccwpck_require__(3228));
+const core = __importStar(__nccwpck_require__(7484));
+/**
+ * GitHub client wrapper for PR comment operations
+ */
+class GitHubClient {
+    constructor(token) {
+        this.octokit = github.getOctokit(token);
+        this.owner = github.context.repo.owner;
+        this.repo = github.context.repo.repo;
+    }
+    /**
+     * Get all comments on a PR
+     */
+    async getPRComments(prNumber) {
+        const { data } = await this.octokit.rest.issues.listComments({
+            owner: this.owner,
+            repo: this.repo,
+            issue_number: prNumber,
+        });
+        return data.map((comment) => ({
+            id: comment.id,
+            body: comment.body || '',
+        }));
+    }
+    /**
+     * Add a comment to a PR
+     */
+    async addPRComment(prNumber, body) {
+        await this.octokit.rest.issues.createComment({
+            owner: this.owner,
+            repo: this.repo,
+            issue_number: prNumber,
+            body,
+        });
+    }
+    /**
+     * Check if a PR already has a comment containing the Backlog issue URL
+     */
+    async hasBacklogComment(prNumber, backlogHost, issueKey) {
+        const comments = await this.getPRComments(prNumber);
+        const backlogIssueUrl = buildBacklogIssueUrl(backlogHost, issueKey);
+        return comments.some((comment) => comment.body.includes(backlogIssueUrl));
+    }
+    /**
+     * Add Backlog issue link comment to PR if not already present
+     * Returns true if comment was added, false if already exists
+     */
+    async addBacklogLinkComment(prNumber, backlogHost, issueKey) {
+        const hasComment = await this.hasBacklogComment(prNumber, backlogHost, issueKey);
+        if (hasComment) {
+            core.info(`PR #${prNumber} already has a comment for ${issueKey}, skipping`);
+            return false;
+        }
+        const backlogIssueUrl = buildBacklogIssueUrl(backlogHost, issueKey);
+        const body = `Backlog: [${issueKey}](${backlogIssueUrl})`;
+        await this.addPRComment(prNumber, body);
+        core.info(`Added Backlog link comment to PR #${prNumber} for ${issueKey}`);
+        return true;
+    }
+}
+exports.GitHubClient = GitHubClient;
+/**
+ * Build Backlog issue URL from host and issue key
+ */
+function buildBacklogIssueUrl(host, issueKey) {
+    const cleanHost = host.replace(/^https?:\/\//, '');
+    return `https://${cleanHost}/view/${issueKey}`;
+}
+
+
+/***/ }),
+
 /***/ 9407:
 /***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
@@ -30076,6 +30190,7 @@ exports.processAnnotation = processAnnotation;
 const core = __importStar(__nccwpck_require__(7484));
 const github = __importStar(__nccwpck_require__(3228));
 const backlog_1 = __nccwpck_require__(4324);
+const github_1 = __nccwpck_require__(9248);
 const parser_1 = __nccwpck_require__(7196);
 /**
  * Get action configuration from inputs
@@ -30086,6 +30201,7 @@ function getConfig() {
             host: core.getInput('backlog_host', { required: true }),
             apiKey: core.getInput('backlog_api_key', { required: true }),
         },
+        githubToken: core.getInput('github_token', { required: true }),
         addComment: core.getBooleanInput('add_comment'),
         updateStatusOnMerge: core.getBooleanInput('update_status_on_merge'),
         fixStatusId: parseInt(core.getInput('fix_status_id') || '3', 10),
@@ -30113,8 +30229,9 @@ function getPullRequestInfo() {
 /**
  * Handle PR opened event (non-draft)
  * Adds comment to referenced Backlog issues
+ * Uses GitHub PR comment to track which issues already have comments
  */
-async function handlePullRequestOpened(client, pr) {
+async function handlePullRequestOpened(backlogClient, githubClient, pr, backlogHost) {
     core.info(`Processing PR #${pr.number}: ${pr.title}`);
     // Extract all issue keys from title and body
     const textToSearch = `${pr.title}\n${pr.body}`;
@@ -30124,17 +30241,27 @@ async function handlePullRequestOpened(client, pr) {
         return;
     }
     core.info(`Found Backlog issue keys: ${issueKeys.join(', ')}`);
-    // Add comment to each issue
+    // Add comment to each issue (with duplicate check via GitHub PR comment)
     for (const issueKey of issueKeys) {
         try {
-            const exists = await client.issueExists(issueKey);
+            // Check if we already added a comment for this issue (via GitHub PR comment)
+            const hasComment = await githubClient.hasBacklogComment(pr.number, backlogHost, issueKey);
+            if (hasComment) {
+                core.info(`Already commented on ${issueKey} (found existing PR comment), skipping`);
+                continue;
+            }
+            // Verify issue exists in Backlog
+            const exists = await backlogClient.issueExists(issueKey);
             if (!exists) {
                 core.warning(`Issue ${issueKey} not found in Backlog, skipping`);
                 continue;
             }
+            // Add comment to Backlog issue
             const comment = `GitHub Pull Request がオープンされました:\n${pr.url}\n\n**${pr.title}**`;
-            await client.addComment(issueKey, comment);
+            await backlogClient.addComment(issueKey, comment);
             core.info(`Added comment to ${issueKey}`);
+            // Add Backlog link comment to PR (for tracking)
+            await githubClient.addBacklogLinkComment(pr.number, backlogHost, issueKey);
         }
         catch (error) {
             core.warning(`Failed to add comment to ${issueKey}: ${error}`);
@@ -30145,7 +30272,7 @@ async function handlePullRequestOpened(client, pr) {
  * Handle PR merged event
  * Updates status of referenced Backlog issues based on annotations
  */
-async function handlePullRequestMerged(client, pr, config) {
+async function handlePullRequestMerged(backlogClient, githubClient, pr, config) {
     core.info(`Processing merged PR #${pr.number}: ${pr.title}`);
     // Parse annotations from title and body
     const textToSearch = `${pr.title}\n${pr.body}`;
@@ -30157,28 +30284,40 @@ async function handlePullRequestMerged(client, pr, config) {
     core.info(`Found annotations: ${annotations.map(a => `${a.action} ${a.issueKey}`).join(', ')}`);
     // Process each annotation
     for (const annotation of annotations) {
-        await processAnnotation(client, annotation, pr, config);
+        await processAnnotation(backlogClient, githubClient, annotation, pr, config);
     }
 }
 /**
  * Process a single annotation - update issue status
  */
-async function processAnnotation(client, annotation, pr, config) {
+async function processAnnotation(backlogClient, githubClient, annotation, pr, config) {
     const { issueKey, action } = annotation;
     try {
+        // Check if we already processed this merge (via GitHub PR comment pattern)
+        // We use a special marker in PR comment to indicate merge was processed
+        const comments = await githubClient.getPRComments(pr.number);
+        const mergeMarker = `<!-- backlog-merged:${issueKey} -->`;
+        const alreadyProcessed = comments.some((c) => c.body.includes(mergeMarker));
+        if (alreadyProcessed) {
+            core.info(`Already processed merge for ${issueKey}, skipping`);
+            return;
+        }
         // Verify issue exists
-        const issue = await client.getIssue(issueKey);
+        const issue = await backlogClient.getIssue(issueKey);
         core.info(`Found issue ${issueKey}: ${issue.summary}`);
         // Determine target status based on action
         const targetStatusId = action === 'fix' ? config.fixStatusId : config.closeStatusId;
         const actionLabel = action === 'fix' ? '処理済み' : '完了';
         // Update issue status
-        await client.updateIssueStatus(issueKey, targetStatusId);
+        await backlogClient.updateIssueStatus(issueKey, targetStatusId);
         core.info(`Updated ${issueKey} status to ${actionLabel} (ID: ${targetStatusId})`);
-        // Add a comment about the merge
-        const comment = `GitHub Pull Request がマージされました:\n${pr.url}\n\nステータスを「${actionLabel}」に更新しました。`;
-        await client.addComment(issueKey, comment);
+        // Add a comment about the merge to Backlog
+        const backlogComment = `GitHub Pull Request がマージされました:\n${pr.url}\n\nステータスを「${actionLabel}」に更新しました。`;
+        await backlogClient.addComment(issueKey, backlogComment);
         core.info(`Added merge comment to ${issueKey}`);
+        // Add marker comment to PR (hidden, for tracking)
+        const prComment = `${mergeMarker}\nBacklog [${issueKey}](https://${config.backlog.host.replace(/^https?:\/\//, '')}/view/${issueKey}) のステータスを「${actionLabel}」に更新しました。`;
+        await githubClient.addPRComment(pr.number, prComment);
     }
     catch (error) {
         core.error(`Failed to process annotation for ${issueKey}: ${error}`);
@@ -30190,7 +30329,8 @@ async function processAnnotation(client, annotation, pr, config) {
 async function run() {
     try {
         const config = getConfig();
-        const client = new backlog_1.BacklogClient(config.backlog);
+        const backlogClient = new backlog_1.BacklogClient(config.backlog);
+        const githubClient = new github_1.GitHubClient(config.githubToken);
         const eventName = github.context.eventName;
         const action = github.context.payload.action;
         core.info(`Event: ${eventName}, Action: ${action}`);
@@ -30215,7 +30355,7 @@ async function run() {
                     return;
                 }
                 if (config.addComment) {
-                    await handlePullRequestOpened(client, pr);
+                    await handlePullRequestOpened(backlogClient, githubClient, pr, config.backlog.host);
                 }
                 else {
                     core.info('Comment on PR open is disabled');
@@ -30228,7 +30368,7 @@ async function run() {
                     return;
                 }
                 if (config.updateStatusOnMerge) {
-                    await handlePullRequestMerged(client, pr, config);
+                    await handlePullRequestMerged(backlogClient, githubClient, pr, config);
                 }
                 else {
                     core.info('Status update on merge is disabled');
@@ -30278,9 +30418,10 @@ const ALL_KEYWORDS = [...FIX_KEYWORDS, ...CLOSE_KEYWORDS];
 /**
  * Regular expression pattern for matching Backlog issue keys
  * Format: PROJECT_KEY-NUMBER (e.g., "PROJ-123", "MY_PROJECT-1")
- * Project keys: uppercase letters, numbers, and underscores
+ * Project keys: 1-25 characters, uppercase letters, numbers, and underscores (must start with letter)
+ * Issue ID: 1-6 digits
  */
-const ISSUE_KEY_PATTERN = '[A-Z][A-Z0-9_]*-\\d+';
+const ISSUE_KEY_PATTERN = '[A-Z][A-Z0-9_]{0,24}-\\d{1,6}';
 /**
  * Build regex pattern for annotation matching
  * Matches patterns like:
@@ -30354,7 +30495,8 @@ function extractIssueKeys(text) {
     if (!text) {
         return [];
     }
-    const pattern = new RegExp(ISSUE_KEY_PATTERN, 'gi');
+    // Use word boundaries to ensure we match complete issue keys only
+    const pattern = new RegExp(`(?<![A-Z0-9_])${ISSUE_KEY_PATTERN}(?!\\d)`, 'gi');
     const keys = new Set();
     let match;
     while ((match = pattern.exec(text)) !== null) {
