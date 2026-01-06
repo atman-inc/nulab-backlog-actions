@@ -6,16 +6,32 @@ GitHub の Issue - Pull Request 連携のような機能を Backlog で実現し
 
 ## 機能
 
-### 1. PR作成時のコメント追加
-Pull Request（ドラフトを除く）が作成されると、タイトルや説明に含まれる Backlog 課題に PR の URL をコメントとして追加します。
+### 1. PR作成・編集時のコメント追加
+
+Pull Request（ドラフトを除く）が作成または編集されると、タイトルや説明に含まれる Backlog 課題に PR の URL をコメントとして追加します。
+
+- 同一PRから同一課題への重複コメントは自動的にスキップされます
+- PRの説明欄にBacklog課題へのリンクが追記されます
+- PR編集時に新しい課題キーが追加された場合も検出されます
+- ボットによる編集（PR説明の自動更新）は無視されます
 
 ### 2. PRマージ時のステータス自動変更
+
 Pull Request がマージされると、アノテーションに基づいて Backlog 課題のステータスを自動的に変更します。
 
 | アノテーション | ステータス |
 |--------------|----------|
 | `fix`, `fixes`, `fixed`, `resolve`, `resolves`, `resolved` | 処理済み |
 | `close`, `closes`, `closed` | 完了 |
+
+## 課題キー形式
+
+課題キーは以下の形式で認識されます：
+
+- プロジェクトキー: 1〜25文字（英字で始まり、英数字とアンダースコア）
+- 課題ID: 1〜6桁の数字
+
+例: `PROJ-123`, `MY_PROJECT-1`, `A-999999`
 
 ## アノテーション形式
 
@@ -26,8 +42,6 @@ fixes PROJECT-123
 close: PROJECT-456
 resolves #PROJECT-789
 ```
-
-課題キーは大文字のプロジェクトキーとハイフン、数字の組み合わせです（例: `PROJ-123`, `MY_PROJECT-1`）。
 
 ## セットアップ
 
@@ -53,7 +67,7 @@ name: Backlog Integration
 
 on:
   pull_request:
-    types: [opened, reopened, ready_for_review, closed]
+    types: [opened, reopened, ready_for_review, edited, closed]
 
 jobs:
   backlog:
@@ -71,6 +85,7 @@ jobs:
 |-----------|------|-----------|------|
 | `backlog_host` | ✅ | - | Backlog のホスト名 |
 | `backlog_api_key` | ✅ | - | Backlog API キー |
+| `github_token` | - | `${{ github.token }}` | GitHub トークン（PR説明の更新に使用） |
 | `add_comment` | - | `true` | PR作成時にコメントを追加するか |
 | `update_status_on_merge` | - | `true` | マージ時にステータスを変更するか |
 | `fix_status_id` | - | `3` | fix系アノテーションで設定するステータスID |
@@ -87,6 +102,7 @@ curl "https://YOUR_HOST/api/v2/projects/PROJECT_KEY/statuses?apiKey=YOUR_API_KEY
 ## 使用例
 
 ### PR作成時
+
 ```
 タイトル: PROJ-123 ログイン機能の修正
 
@@ -96,8 +112,10 @@ fixes PROJ-123
 ```
 
 → Backlog の PROJ-123 に「GitHub Pull Request がオープンされました」というコメントが追加されます。
+→ PRの説明欄に Backlog 課題へのリンクが追記されます。
 
 ### PRマージ時
+
 ```
 タイトル: fixes PROJ-456 ユーザー登録のバグ修正
 ```
@@ -105,6 +123,7 @@ fixes PROJ-123
 → マージ時に PROJ-456 のステータスが「処理済み」に変更されます。
 
 ### 複数の課題を参照
+
 ```
 説明:
 この PR では以下の課題を解決します：
@@ -113,11 +132,7 @@ closes PROJ-456
 ```
 
 → マージ時に PROJ-123 は「処理済み」、PROJ-456 は「完了」に変更されます。
-
-## 動作環境
-
-- Node.js 20
-- GitHub Actions
+→ PRの説明欄には両方の課題へのリンクが1行で追記されます。
 
 ## ライセンス
 
