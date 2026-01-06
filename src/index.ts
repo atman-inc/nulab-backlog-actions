@@ -182,12 +182,19 @@ async function run(): Promise<void> {
 
     const eventName = github.context.eventName;
     const action = github.context.payload.action;
+    const actor = github.context.actor;
 
-    core.info(`Event: ${eventName}, Action: ${action}`);
+    core.info(`Event: ${eventName}, Action: ${action}, Actor: ${actor}`);
 
     // Only handle pull_request events
     if (eventName !== 'pull_request') {
       core.info(`Skipping non-pull_request event: ${eventName}`);
+      return;
+    }
+
+    // Skip edits made by bots (to prevent unnecessary runs when we update PR description)
+    if (action === 'edited' && (actor === 'github-actions[bot]' || actor.endsWith('[bot]'))) {
+      core.info('Skipping edit by bot');
       return;
     }
 
@@ -202,6 +209,7 @@ async function run(): Promise<void> {
       case 'opened':
       case 'reopened':
       case 'ready_for_review':
+      case 'edited':
         // Skip draft PRs
         if (pr.isDraft) {
           core.info('Skipping draft PR');
