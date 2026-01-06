@@ -31,6 +31,8 @@ export interface BacklogConfig {
 export interface ActionConfig {
   /** Backlog API configuration */
   backlog: BacklogConfig;
+  /** GitHub token for PR operations */
+  githubToken: string;
   /** Whether to add comment on PR open */
   addComment: boolean;
   /** Whether to update status on PR merge */

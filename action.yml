@@ -13,6 +13,10 @@ inputs:
   backlog_api_key:
     description: 'Backlog API key'
     required: true
+  github_token:
+    description: 'GitHub token for PR operations (defaults to GITHUB_TOKEN)'
+    required: false
+    default: ${{ github.token }}
   add_comment:
     description: 'Add comment to Backlog issue when PR is opened (non-draft)'
     required: false
