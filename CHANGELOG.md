@@ -1,5 +1,8 @@
 # Changelog
 
+## [v0.0.2](https://github.com/atman-inc/nulab-backlog-actions/compare/v0.0.1...v0.0.2) - 2026-01-06
+- fix: Align action.yml name with repository name by @dameleon in https://github.com/atman-inc/nulab-backlog-actions/pull/10
+
 ## [v0.0.1](https://github.com/atman-inc/nulab-backlog-actions/compare/v0.0.0...v0.0.1) - 2026-01-06
 - EXAMPLEPRJ-1 test by @dameleon in https://github.com/atman-inc/nulab-backlog-actions/pull/3
 - refactor: Use official backlog-js library for API calls by @dameleon in https://github.com/atman-inc/nulab-backlog-actions/pull/4
