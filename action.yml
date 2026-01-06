@@ -1,4 +1,4 @@
-name: 'Nulab Backlog Integration'
+name: 'Nulab Backlog Actions'
 description: 'Integrate GitHub Pull Requests with Nulab Backlog issues'
 author: 'atman-inc'
 
@@ -18,7 +18,7 @@ inputs:
     required: false
     default: ${{ github.token }}
   add_comment:
-    description: 'Add comment to Backlog issue when PR is opened (non-draft)'
+    description: 'Add comment to Backlog issue when PR is opened or edited (non-draft)'
     required: false
     default: 'true'
   update_status_on_merge:
