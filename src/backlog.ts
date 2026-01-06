@@ -1,92 +1,52 @@
+import { Backlog } from 'backlog-js';
 import * as core from '@actions/core';
-import { BacklogConfig, BacklogIssue, BacklogComment, BacklogStatus } from './types';
+import { BacklogConfig } from './types';
 
 /**
- * Backlog API client
+ * Backlog API client wrapper using official backlog-js library
  */
 export class BacklogClient {
-  private readonly baseUrl: string;
-  private readonly apiKey: string;
+  private readonly client: Backlog;
 
   constructor(config: BacklogConfig) {
     // Ensure host doesn't have protocol
     const host = config.host.replace(/^https?:\/\//, '');
-    this.baseUrl = `https://${host}/api/v2`;
-    this.apiKey = config.apiKey;
-  }
-
-  /**
-   * Make an API request to Backlog
-   */
-  private async request<T>(
-    method: string,
-    path: string,
-    body?: Record<string, unknown>
-  ): Promise<T> {
-    const url = `${this.baseUrl}${path}?apiKey=${this.apiKey}`;
-
-    const options: RequestInit = {
-      method,
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-    };
-
-    if (body && (method === 'POST' || method === 'PATCH')) {
-      options.body = new URLSearchParams(
-        Object.entries(body).reduce((acc, [key, value]) => {
-          if (value !== undefined && value !== null) {
-            acc[key] = String(value);
-          }
-          return acc;
-        }, {} as Record<string, string>)
-      ).toString();
-    }
-
-    core.debug(`Backlog API: ${method} ${path}`);
-
-    const response = await fetch(url, options);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(
-        `Backlog API error: ${response.status} ${response.statusText} - ${errorText}`
-      );
-    }
-
-    return response.json() as Promise<T>;
+    this.client = new Backlog({
+      host,
+      apiKey: config.apiKey,
+    });
   }
 
   /**
    * Get issue by key or ID
    */
-  async getIssue(issueIdOrKey: string): Promise<BacklogIssue> {
-    return this.request<BacklogIssue>('GET', `/issues/${issueIdOrKey}`);
+  async getIssue(issueIdOrKey: string) {
+    core.debug(`Getting issue: ${issueIdOrKey}`);
+    return this.client.getIssue(issueIdOrKey);
   }
 
   /**
    * Add a comment to an issue
    */
-  async addComment(issueIdOrKey: string, content: string): Promise<BacklogComment> {
-    return this.request<BacklogComment>('POST', `/issues/${issueIdOrKey}/comments`, {
-      content,
-    });
+  async addComment(issueIdOrKey: string, content: string) {
+    core.debug(`Adding comment to issue: ${issueIdOrKey}`);
+    return this.client.postIssueComments(issueIdOrKey, { content });
   }
 
   /**
    * Update issue status
    */
-  async updateIssueStatus(issueIdOrKey: string, statusId: number): Promise<BacklogIssue> {
-    return this.request<BacklogIssue>('PATCH', `/issues/${issueIdOrKey}`, {
-      statusId,
-    });
+  async updateIssueStatus(issueIdOrKey: string, statusId: number) {
+    core.debug(`Updating issue ${issueIdOrKey} status to: ${statusId}`);
+    return this.client.patchIssue(issueIdOrKey, { statusId });
   }
 
   /**
    * Get project statuses
    */
-  async getProjectStatuses(projectIdOrKey: string | number): Promise<BacklogStatus[]> {
-    return this.request<BacklogStatus[]>('GET', `/projects/${projectIdOrKey}/statuses`);
+  async getProjectStatuses(projectIdOrKey: string | number) {
+    core.debug(`Getting statuses for project: ${projectIdOrKey}`);
+    return this.client.getProjectStatuses(projectIdOrKey);
   }
 
   /**
